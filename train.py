@@ -91,7 +91,7 @@ validation_dataset = validation_dataset.cache().prefetch(buffer_size=tf.data.AUT
 test_dataset = test_dataset.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
 
 # 训练模型
-initial_epochs = 1
+initial_epochs = 10
 history = model.fit(
     train_dataset, epochs=initial_epochs, validation_data=validation_dataset
 )
@@ -141,7 +141,7 @@ model.compile(
 )
 model.summary()
 len(model.trainable_variables)
-fine_tune_epochs = 1
+fine_tune_epochs = 10
 total_epochs = initial_epochs + fine_tune_epochs
 
 history_fine = model.fit(
