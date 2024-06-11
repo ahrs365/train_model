@@ -1,12 +1,9 @@
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
+import os
 
-if tf.test.gpu_device_name():
-    print("Default GPU Device: {}".format(tf.test.gpu_device_name()))
-else:
-    print("Please install GPU version of TF")
-
+print(tf.__version__)
 # 数据路径
 data_dir = "data/flower_photos"
 
@@ -94,7 +91,7 @@ validation_dataset = validation_dataset.cache().prefetch(buffer_size=tf.data.AUT
 test_dataset = test_dataset.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
 
 # 训练模型
-initial_epochs = 10
+initial_epochs = 1
 history = model.fit(
     train_dataset, epochs=initial_epochs, validation_data=validation_dataset
 )
@@ -144,7 +141,7 @@ model.compile(
 )
 model.summary()
 len(model.trainable_variables)
-fine_tune_epochs = 10
+fine_tune_epochs = 1
 total_epochs = initial_epochs + fine_tune_epochs
 
 history_fine = model.fit(
@@ -180,7 +177,7 @@ plt.plot(
 plt.legend(loc="upper right")
 plt.title("Training and Validation Loss")
 plt.xlabel("epoch")
-plt.show()
+# plt.show()
 
 # 评估和预测
 loss, accuracy = model.evaluate(test_dataset)
@@ -200,3 +197,27 @@ for i in range(9):
     plt.imshow(image_batch[i].astype("uint8"))
     plt.title(class_names[predicted_class_indices[i]])
     plt.axis("off")
+
+plt.show()
+
+
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+tflite_model = converter.convert()
+
+# Save the model.
+with open("model/model.tflite", "wb") as f:
+    f.write(tflite_model)
+
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+converter.optimizations = [tf.lite.Optimize.DEFAULT]
+q_tflite_model = converter.convert()
+
+# Save the model.
+with open("model/q_model.tflite", "wb") as f:
+    f.write(q_tflite_model)
+
+model_size = os.path.getsize("model/model.tflite")
+print("model is %d bytes" % model_size)
+
+model_size = os.path.getsize("model/q_model.tflite")
+print("q_model is %d bytes" % model_size)
