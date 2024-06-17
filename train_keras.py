@@ -4,6 +4,16 @@ import numpy as np
 import os
 
 print(tf.__version__)
+
+# 列出所有可用的设备，并检查是否有 GPU
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    print("可用的 GPU：")
+    for gpu in gpus:
+        print(gpu)
+else:
+    print("未检测到 GPU。")
+    
 # 数据路径
 data_dir = "data/rps_data_sample"
 
@@ -223,4 +233,4 @@ print("model is %d bytes" % model_size)
 model_size = os.path.getsize("model/q_model.tflite")
 print("q_model is %d bytes" % model_size)
 
-# xxd -i converted_model.tflite > model_data.cc
+# xxd -i model/model.tflite > model_data.cc
