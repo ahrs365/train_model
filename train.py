@@ -5,11 +5,11 @@ import os
 
 print(tf.__version__)
 # 数据路径
-data_dir = "data/flower_photos"
+data_dir = "data/rps_data_sample"
 
 # 图像尺寸和批次大小
 IMG_SIZE = (160, 160)
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 
 # 创建训练和验证数据集
 train_dataset = tf.keras.utils.image_dataset_from_directory(
@@ -34,8 +34,8 @@ validation_dataset = tf.keras.utils.image_dataset_from_directory(
 
 # 使用 tf.data.experimental.cardinality 确定验证集中有多少批次的数据，然后将其中的 20% 移至测试集。
 val_batches = tf.data.experimental.cardinality(validation_dataset)
-test_dataset = validation_dataset.take(val_batches // 5)
-validation_dataset = validation_dataset.skip(val_batches // 5)
+test_dataset = validation_dataset.take(val_batches // 2)
+validation_dataset = validation_dataset.skip(val_batches // 2)
 print(
     "Number of validation batches: %d"
     % tf.data.experimental.cardinality(validation_dataset)
@@ -51,10 +51,11 @@ data_augmentation = tf.keras.Sequential(
     [tf.keras.layers.RandomFlip("horizontal"), tf.keras.layers.RandomRotation(0.2)]
 )
 
+
 # 创建 MobileNet V2 模型
 IMG_SHAPE = IMG_SIZE + (3,)
 base_model = tf.keras.applications.MobileNetV2(
-    input_shape=IMG_SHAPE, include_top=False, weights="imagenet"
+    input_shape=IMG_SHAPE, include_top=False, alpha=0.35, weights="imagenet"
 )
 base_model.trainable = False  # 冻结模型
 
@@ -221,3 +222,5 @@ print("model is %d bytes" % model_size)
 
 model_size = os.path.getsize("model/q_model.tflite")
 print("q_model is %d bytes" % model_size)
+
+# xxd -i converted_model.tflite > model_data.cc
