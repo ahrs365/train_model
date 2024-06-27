@@ -2,6 +2,13 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 import os
+import tensorflow_hub as hub
+
+
+##############################################
+#  加载hub上的预训练模型，进行训练                #
+#  depth multiplier 0.35                     #
+##############################################
 
 print(tf.__version__)
 
@@ -20,8 +27,7 @@ data_dir = "data/hagrid"
 
 
 # 图像尺寸和批次大小
-IMG_SIZE = (320, 320)
-IMG_SHAPE = IMG_SIZE + (3,)
+IMG_SIZE = (128, 128)
 BATCH_SIZE = 16
 
 # 创建训练和验证数据集
@@ -67,26 +73,43 @@ data_augmentation = tf.keras.Sequential(
 
 # 创建 MobileNet V2 模型
 IMG_SHAPE = IMG_SIZE + (3,)
-base_model = tf.keras.applications.MobileNetV2(
-    input_shape=IMG_SHAPE, include_top=False, alpha=0.35, weights="imagenet"
-)
-base_model.trainable = False  # 冻结模型
+# base_model = tf.keras.applications.MobileNetV2(
+#     input_shape=IMG_SHAPE, include_top=False, alpha=0.35, weights="imagenet"
+# )
+# base_model.trainable = False  # 冻结模型
 
+base_model = hub.KerasLayer(
+    "https://www.kaggle.com/models/google/mobilenet-v1/TensorFlow2/025-128-feature-vector/2",
+    trainable=True,
+    arguments=dict(batch_norm_momentum=0.997),
+)
+
+
+###################方式1：sequential####################
+# model = tf.keras.Sequential([
+#     base_model,
+#     tf.keras.layers.Dense(len(class_names), activation='softmax')
+# ])
+# model.build([None, 128, 128, 3])  # Batch input shape.
+
+
+####################方式2：函数api######################
 # 数据预处理
-preprocess_input = tf.keras.applications.mobilenet_v2.preprocess_input
+preprocess_input = tf.keras.applications.mobilenet.preprocess_input
 
 # 构建模型
-global_average_layer = tf.keras.layers.GlobalAveragePooling2D()
+# global_average_layer = tf.keras.layers.GlobalAveragePooling2D()
 prediction_layer = tf.keras.layers.Dense(len(class_names), activation="softmax")
 
 inputs = tf.keras.Input(shape=IMG_SHAPE)
 x = data_augmentation(inputs)  # 应用数据增强
 x = preprocess_input(x)
-x = base_model(x, training=False)
-x = global_average_layer(x)
+x = base_model(x)
+# x = global_average_layer(x)
 x = tf.keras.layers.Dropout(0.2)(x)
 outputs = prediction_layer(x)
 model = tf.keras.Model(inputs, outputs)
+
 
 # 编译模型
 base_learning_rate = 0.0001
@@ -105,7 +128,7 @@ validation_dataset = validation_dataset.cache().prefetch(buffer_size=tf.data.AUT
 test_dataset = test_dataset.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
 
 # 训练模型
-initial_epochs = 10
+initial_epochs = 20
 history = model.fit(
     train_dataset, epochs=initial_epochs, validation_data=validation_dataset
 )
@@ -136,62 +159,6 @@ plt.title("Training and Validation Loss")
 plt.xlabel("epoch")
 # plt.show()
 
-# 微调
-base_model.trainable = True
-# Let's take a look to see how many layers are in the base model
-print("Number of layers in the base model: ", len(base_model.layers))
-
-# Fine-tune from this layer onwards
-fine_tune_at = 50
-
-# Freeze all the layers before the `fine_tune_at` layer
-for layer in base_model.layers[:fine_tune_at]:
-    layer.trainable = False
-
-model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=base_learning_rate / 10),
-    loss="sparse_categorical_crossentropy",
-    metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
-)
-model.summary()
-len(model.trainable_variables)
-fine_tune_epochs = 100
-total_epochs = initial_epochs + fine_tune_epochs
-
-history_fine = model.fit(
-    train_dataset,
-    epochs=total_epochs,
-    initial_epoch=history.epoch[-1],
-    validation_data=validation_dataset,
-)
-
-acc.extend(history_fine.history["accuracy"])
-val_acc.extend(history_fine.history["val_accuracy"])
-loss.extend(history_fine.history["loss"])
-val_loss.extend(history_fine.history["val_loss"])
-
-plt.figure(figsize=(8, 8))
-plt.subplot(2, 1, 1)
-plt.plot(acc, label="Training Accuracy")
-plt.plot(val_acc, label="Validation Accuracy")
-plt.ylim([0.8, 1])
-plt.plot(
-    [initial_epochs - 1, initial_epochs - 1], plt.ylim(), label="Start Fine Tuning"
-)
-plt.legend(loc="lower right")
-plt.title("Training and Validation Accuracy")
-
-plt.subplot(2, 1, 2)
-plt.plot(loss, label="Training Loss")
-plt.plot(val_loss, label="Validation Loss")
-plt.ylim([0, 1.0])
-plt.plot(
-    [initial_epochs - 1, initial_epochs - 1], plt.ylim(), label="Start Fine Tuning"
-)
-plt.legend(loc="upper right")
-plt.title("Training and Validation Loss")
-plt.xlabel("epoch")
-# plt.show()
 
 # 评估和预测
 loss, accuracy = model.evaluate(test_dataset)
@@ -223,17 +190,6 @@ with open("model/model.tflite", "wb") as f:
     f.write(tflite_model)
 
 
-# converter = tf.lite.TFLiteConverter.from_keras_model(model)
-# converter.optimizations = [tf.lite.Optimize.DEFAULT]
-# q_tflite_model = converter.convert()
-# 如果选择了优化模型并指定了校准样例的数量
-def representative_data_gen():
-    for input_value in train_dataset.batch(1).take(
-        100
-    ):  # Assuming 'dataset' is your tf.data.Dataset
-        yield [input_value.numpy()]
-
-
 def representative_data_gen():
     for images, _ in train_dataset.take(100):
         # images.numpy() 转换图像张量到 numpy 数组，适用于 TensorFlow Lite 预处理
@@ -247,11 +203,20 @@ converter.representative_dataset = representative_data_gen
 test_gen = representative_data_gen()
 sample_input = next(test_gen)
 print("Sample input shape:", sample_input[0].shape)
+
+
 # 确保模型转换后只使用整数
-converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+# converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+converter.target_spec.supported_ops = [
+    tf.lite.OpsSet.TFLITE_BUILTINS_INT8,
+    tf.lite.OpsSet.TFLITE_BUILTINS,
+]
+
+
 converter.inference_input_type = tf.int8
 converter.inference_output_type = tf.int8
 q_tflite_model = converter.convert()
+
 # Save the model.
 with open("model/q_model.tflite", "wb") as f:
     f.write(q_tflite_model)
