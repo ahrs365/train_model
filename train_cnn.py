@@ -14,7 +14,7 @@ else:
     print("未检测到 GPU。")
 
 # 数据路径
-data_dir = "data/arm"
+data_dir = "data/whole_body"
 
 # 图像尺寸和批次大小
 IMG_SIZE = (96, 96)
@@ -70,6 +70,21 @@ model = tf.keras.Sequential(
         tf.keras.layers.Dense(len(class_names), activation="softmax"),
     ]
 )
+
+# model = tf.keras.Sequential(
+#     [
+#         tf.keras.layers.InputLayer(input_shape=(96, 96, 1)),
+#         tf.keras.layers.Rescaling(1.0 / 255),
+#         tf.keras.layers.Conv2D(8, (3, 3), activation="relu"),  # 减少过滤器数量
+#         tf.keras.layers.MaxPooling2D((2, 2)),
+#         tf.keras.layers.Conv2D(16, (3, 3), activation="relu"),  # 减少过滤器数量
+#         tf.keras.layers.MaxPooling2D((2, 2)),
+#         tf.keras.layers.GlobalAveragePooling2D(),  # 使用全局平均池化
+#         tf.keras.layers.Dense(32, activation="relu"),  # 减少全连接层神经元数量
+#         tf.keras.layers.Dropout(0.5),  # 保留 Dropout 层
+#         tf.keras.layers.Dense(1, activation="sigmoid"),  # 二分类输出
+#     ]
+# )
 
 
 # 编译模型
